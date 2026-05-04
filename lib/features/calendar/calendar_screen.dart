@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/models/task_model.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/services/task_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_shadows.dart';
 import '../../core/constants/app_dimens.dart';
 
-/// Calendar tab — shows a month view with task events.
-/// Phase 4 will wire events to Firestore.
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
 
@@ -16,43 +18,81 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _focusedMonth = DateTime.now();
   int? _selectedDay;
 
-  // Dummy events keyed by day-of-month
-  final Map<int, List<_Event>> _events = {
-    5:  [_Event('Team Standup', AppColors.accentMint)],
-    10: [_Event('Design Review', AppColors.accentBlue), _Event('Sprint Planning', AppColors.accentPink)],
-    15: [_Event('Client Demo', AppColors.accentOrange)],
-    20: [_Event('Deadline: Prototype', AppColors.error)],
-    25: [_Event('Monthly Retro', AppColors.primaryLight)],
-  };
+  static const _months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final uid = context.read<AuthProvider>().user!.uid;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimens.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Calendar Card ────────────────────────────────────────
-            _CalendarCard(
-              focusedMonth: _focusedMonth,
-              selectedDay: _selectedDay,
-              events: _events,
-              onMonthChanged: (d) => setState(() => _focusedMonth = d),
-              onDaySelected: (d) => setState(() => _selectedDay = d),
-            ),
-            const SizedBox(height: AppDimens.lg),
+      body: StreamBuilder<List<TaskModel>>(
+        stream: TaskService().getUserTasks(uid),
+        builder: (context, snap) {
+          final tasks = snap.data ?? [];
 
-            // ── Events for selected day ──────────────────────────────
-            Text('Events', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: AppDimens.sm),
-            if (_selectedDay != null && _events.containsKey(_selectedDay))
-              ..._events[_selectedDay]!.map((e) => _EventTile(event: e))
-            else
-              _EmptyEvents(selectedDay: _selectedDay),
-          ],
-        ),
+          // Group tasks by day-of-month for the focused month.
+          final tasksByDay = <int, List<TaskModel>>{};
+          for (final t in tasks) {
+            if (t.createdAt.year == _focusedMonth.year &&
+                t.createdAt.month == _focusedMonth.month) {
+              tasksByDay.putIfAbsent(t.createdAt.day, () => []).add(t);
+            }
+          }
+
+          final selectedTasks = _selectedDay != null
+              ? (tasksByDay[_selectedDay] ?? [])
+              : <TaskModel>[];
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppDimens.md),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Calendar Card ──────────────────────────────────────
+                _CalendarCard(
+                  focusedMonth: _focusedMonth,
+                  selectedDay: _selectedDay,
+                  tasksByDay: tasksByDay,
+                  onMonthChanged: (d) =>
+                      setState(() { _focusedMonth = d; _selectedDay = null; }),
+                  onDaySelected: (d) => setState(() => _selectedDay = d),
+                ),
+                const SizedBox(height: AppDimens.lg),
+
+                // ── Tasks for selected day ─────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _selectedDay != null
+                          ? 'Tasks on ${_months[_focusedMonth.month - 1]} $_selectedDay'
+                          : 'All Tasks This Month',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    if (snap.connectionState == ConnectionState.waiting)
+                      const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppDimens.sm),
+
+                if (selectedTasks.isEmpty && _selectedDay != null)
+                  _EmptyDay()
+                else if (_selectedDay == null && tasks.isEmpty)
+                  _EmptyDay()
+                else
+                  ...((_selectedDay != null ? selectedTasks : tasks)
+                      .map((t) => _TaskTile(task: t))),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -64,14 +104,14 @@ class _CalendarCard extends StatelessWidget {
   const _CalendarCard({
     required this.focusedMonth,
     required this.selectedDay,
-    required this.events,
+    required this.tasksByDay,
     required this.onMonthChanged,
     required this.onDaySelected,
   });
 
   final DateTime focusedMonth;
   final int? selectedDay;
-  final Map<int, List<_Event>> events;
+  final Map<int, List<TaskModel>> tasksByDay;
   final void Function(DateTime) onMonthChanged;
   final void Function(int) onDaySelected;
 
@@ -99,14 +139,13 @@ class _CalendarCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
+          // Month navigation header
           Row(
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 onPressed: () => onMonthChanged(
-                  DateTime(focusedMonth.year, focusedMonth.month - 1),
-                ),
+                    DateTime(focusedMonth.year, focusedMonth.month - 1)),
               ),
               Expanded(
                 child: Text(
@@ -118,8 +157,7 @@ class _CalendarCard extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 onPressed: () => onMonthChanged(
-                  DateTime(focusedMonth.year, focusedMonth.month + 1),
-                ),
+                    DateTime(focusedMonth.year, focusedMonth.month + 1)),
               ),
             ],
           ),
@@ -127,17 +165,13 @@ class _CalendarCard extends StatelessWidget {
 
           // Weekday labels
           Row(
-            children: _weekdays
-                .map((w) => Expanded(
-                      child: Center(
-                        child: Text(w,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600)),
-                      ),
-                    ))
-                .toList(),
+            children: _weekdays.map((w) => Expanded(
+              child: Center(
+                child: Text(w,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+              ),
+            )).toList(),
           ),
           const SizedBox(height: AppDimens.sm),
 
@@ -146,18 +180,18 @@ class _CalendarCard extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 1,
+              crossAxisCount: 7, childAspectRatio: 1,
             ),
             itemCount: firstWeekday + daysInMonth,
             itemBuilder: (context, i) {
               if (i < firstWeekday) return const SizedBox.shrink();
               final day = i - firstWeekday + 1;
               final isToday = today.year == focusedMonth.year &&
-                  today.month == focusedMonth.month &&
-                  today.day == day;
+                  today.month == focusedMonth.month && today.day == day;
               final isSelected = day == selectedDay;
-              final hasEvent = events.containsKey(day);
+              final hasTasks = tasksByDay.containsKey(day);
+              final dayTasks = tasksByDay[day] ?? [];
+              final allDone = dayTasks.isNotEmpty && dayTasks.every((t) => t.done);
 
               return GestureDetector(
                 onTap: () => onDaySelected(day),
@@ -166,8 +200,7 @@ class _CalendarCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 34,
-                        height: 34,
+                        width: 34, height: 34,
                         decoration: BoxDecoration(
                           color: isSelected
                               ? AppColors.primaryLight
@@ -177,14 +210,11 @@ class _CalendarCard extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Center(
-                          child: Text(
-                            '$day',
+                          child: Text('$day',
                             style: TextStyle(
-                              fontFamily: 'Poppins',
-                              fontSize: 13,
+                              fontFamily: 'Poppins', fontSize: 13,
                               fontWeight: isToday || isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
+                                  ? FontWeight.w700 : FontWeight.w400,
                               color: isSelected
                                   ? AppColors.white
                                   : Theme.of(context).colorScheme.onSurface,
@@ -192,13 +222,14 @@ class _CalendarCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (hasEvent)
+                      if (hasTasks)
                         Container(
-                          width: 5,
-                          height: 5,
+                          width: 5, height: 5,
                           margin: const EdgeInsets.only(top: 2),
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryLight,
+                          decoration: BoxDecoration(
+                            color: allDone
+                                ? AppColors.accentMint
+                                : AppColors.primaryLight,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -214,11 +245,11 @@ class _CalendarCard extends StatelessWidget {
   }
 }
 
-// ── Event Tile ────────────────────────────────────────────────────────────────
+// ── Task Tile ─────────────────────────────────────────────────────────────────
 
-class _EventTile extends StatelessWidget {
-  const _EventTile({required this.event});
-  final _Event event;
+class _TaskTile extends StatelessWidget {
+  const _TaskTile({required this.task});
+  final TaskModel task;
 
   @override
   Widget build(BuildContext context) {
@@ -230,43 +261,53 @@ class _EventTile extends StatelessWidget {
         color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(AppDimens.radiusMd),
         boxShadow: isDark ? AppShadows.cardDark : AppShadows.card,
-        border: Border(
-          left: BorderSide(color: event.color, width: 4),
-        ),
+        border: Border(left: BorderSide(color: task.color, width: 4)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.event_note_outlined, size: 20),
+          Icon(
+            task.done ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: task.done
+                ? AppColors.accentMint
+                : Theme.of(context).colorScheme.onSurfaceVariant,
+            size: 20,
+          ),
           const SizedBox(width: AppDimens.sm),
-          Text(event.title, style: Theme.of(context).textTheme.bodyMedium),
+          Expanded(
+            child: Text(
+              task.title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    decoration: task.done ? TextDecoration.lineThrough : null,
+                    color: task.done
+                        ? Theme.of(context).colorScheme.onSurfaceVariant
+                        : null,
+                  ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _EmptyEvents extends StatelessWidget {
-  const _EmptyEvents({required this.selectedDay});
-  final int? selectedDay;
-
+class _EmptyDay extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimens.lg),
-      child: Center(
-        child: Text(
-          selectedDay == null
-              ? 'Tap a day to see events'
-              : 'No events on this day',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppDimens.lg),
+    child: Center(
+      child: Column(
+        children: [
+          Icon(Icons.event_available_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(height: AppDimens.sm),
+          Text(
+            'No tasks on this day.\nAdd tasks from My Tasks tab.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
-    );
-  }
-}
-
-class _Event {
-  const _Event(this.title, this.color);
-  final String title;
-  final Color color;
+    ),
+  );
 }

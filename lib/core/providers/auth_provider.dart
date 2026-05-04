@@ -49,8 +49,8 @@ class AuthProvider extends ChangeNotifier {
       );
       _user = cred.user;
 
-      // Save profile to Firestore immediately after account creation.
       if (_user != null) {
+        // Save profile to Firestore.
         await _userService.createUser(UserModel(
           uid: _user!.uid,
           firstName: firstName,
@@ -58,6 +58,11 @@ class AuthProvider extends ChangeNotifier {
           email: email,
           bio: '',
         ));
+        // Send verification email (fire and forget).
+        await _user!.sendEmailVerification();
+        // Sign out immediately — user will log in after verifying.
+        await _authService.signOut();
+        _user = null;
       }
       notifyListeners();
       return true;

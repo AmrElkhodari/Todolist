@@ -5,11 +5,15 @@ class FolderService {
   final _col = FirebaseFirestore.instance.collection('folders');
 
   /// Real-time stream of folders where user is owner or member.
+  /// Sorting is done client-side to avoid requiring a composite Firestore index.
   Stream<List<FolderModel>> getUserFolders(String userId) => _col
       .where('members', arrayContains: userId)
-      .orderBy('createdAt', descending: false)
       .snapshots()
-      .map((s) => s.docs.map(FolderModel.fromFirestore).toList());
+      .map((s) {
+        final folders = s.docs.map(FolderModel.fromFirestore).toList();
+        folders.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        return folders;
+      });
 
   Future<void> createFolder({
     required String ownerId,
@@ -22,7 +26,7 @@ class FolderService {
         'name': name,
         'colorIndex': colorIndex,
         'iconIndex': iconIndex,
-        'members': [ownerId], // Creator is automatically a member.
+        'members': [ownerId],
         'createdAt': FieldValue.serverTimestamp(),
       });
 

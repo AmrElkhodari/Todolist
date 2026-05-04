@@ -5,7 +5,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/constants/app_dimens.dart';
 import '../../shared/widgets/auth_widgets.dart';
-import 'email_verification_screen.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -42,8 +41,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       lastName: _lastNameCtrl.text.trim(),
     );
     if (ok && mounted) {
+      // signUp already signed the user out — go to Login and show banner.
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const EmailVerificationScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen(verificationSent: true)),
       );
     }
   }

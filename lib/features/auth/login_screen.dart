@@ -9,7 +9,8 @@ import 'sign_up_screen.dart';
 import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.verificationSent = false});
+  final bool verificationSent;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -68,6 +69,38 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text('Log in to your account',
                     style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: AppDimens.xl),
+
+                // ── Verification success banner ──────────────────────────
+                if (widget.verificationSent) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppDimens.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentMint.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                      border: Border.all(
+                          color: AppColors.accentMint.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.mark_email_read_outlined,
+                            color: AppColors.accentMint, size: 20),
+                        const SizedBox(width: AppDimens.sm),
+                        const Expanded(
+                          child: Text(
+                            'Account created! Check your email to verify, then log in.',
+                            style: TextStyle(
+                              fontFamily: 'Poppins',
+                              fontSize: 13,
+                              color: AppColors.accentMint,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppDimens.md),
+                ],
 
                 // ── Error Banner ─────────────────────────────────────────
                 if (auth.errorMessage != null) ...[

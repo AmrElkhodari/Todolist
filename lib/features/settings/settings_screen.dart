@@ -44,14 +44,6 @@ class SettingsScreen extends StatelessWidget {
             _SectionLabel('Preferences'),
             const SizedBox(height: AppDimens.sm),
             _ThemeTile(isDark: theme.isDark, onToggle: theme.toggleTheme),
-            const SizedBox(height: AppDimens.xs),
-            _SettingsTile(
-              icon: Icons.notifications_outlined,
-              color: AppColors.accentOrange,
-              label: 'Notifications',
-              subtitle: 'Manage alert tones',
-              onTap: () {},
-            ),
 
             const SizedBox(height: AppDimens.md),
             _SectionLabel('Security'),

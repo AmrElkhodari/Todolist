@@ -1,21 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'core/providers/auth_provider.dart';
+import 'core/providers/auth_provider.dart' as app_auth;
 import 'core/providers/theme_provider.dart';
 import 'core/theme/app_theme.dart';
-import 'features/auth/email_verification_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/main_shell/main_shell.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Load persisted theme before rendering the first frame.
   final themeProvider = ThemeProvider();
   await themeProvider.loadTheme();
 
@@ -23,7 +20,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: themeProvider),
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => app_auth.AuthProvider()),
       ],
       child: const CollabifyApp(),
     ),
@@ -36,7 +33,6 @@ class CollabifyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
-
     return MaterialApp(
       title: 'Collabify',
       debugShowCheckedModeBanner: false,
@@ -48,26 +44,32 @@ class CollabifyApp extends StatelessWidget {
   }
 }
 
-/// Listens to the auth state and routes the user to the correct screen.
-///
-///   Not logged in       → LoginScreen
-///   Logged in, no verify→ EmailVerificationScreen
-///   Logged in + verified → PlaceholderHomeScreen (Phase 3: full home)
+/// Listens to Firebase's auth stream directly — the most reliable way to route.
+/// No dependency on a custom Provider state; Firebase fires the stream the
+/// moment sign-in / sign-out completes.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // While Firebase is initializing, show a splash loader.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    if (!auth.isLoggedIn) {
-      return const LoginScreen();
-    }
+        final user = snapshot.data;
 
-    if (!auth.isEmailVerified) {
-      return const EmailVerificationScreen();
-    }
+        // Not logged in → Login.
+        if (user == null) return const LoginScreen();
 
-    return const MainShell();
+        // Logged in → Home (no email-verification gate here).
+        return const MainShell();
+      },
+    );
   }
 }

@@ -5,11 +5,15 @@ class TaskService {
   final _col = FirebaseFirestore.instance.collection('tasks');
 
   /// Real-time stream of a user's tasks, newest first.
+  /// Sorting is done client-side to avoid requiring a composite Firestore index.
   Stream<List<TaskModel>> getUserTasks(String userId) => _col
       .where('userId', isEqualTo: userId)
-      .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((s) => s.docs.map(TaskModel.fromFirestore).toList());
+      .map((s) {
+        final tasks = s.docs.map(TaskModel.fromFirestore).toList();
+        tasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return tasks;
+      });
 
   Future<void> addTask({
     required String userId,

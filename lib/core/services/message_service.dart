@@ -4,15 +4,20 @@ import '../models/chat_model.dart';
 class MessageService {
   final _db = FirebaseFirestore.instance;
 
-  /// Real-time stream of all chats for a user.
+  /// Real-time stream of all chats for a user, sorted newest-first client-side.
+  /// No orderBy to avoid requiring a composite Firestore index.
   Stream<List<ChatModel>> getUserChats(String userId) => _db
       .collection('chats')
       .where('participants', arrayContains: userId)
-      .orderBy('lastMessageTime', descending: true)
       .snapshots()
-      .map((s) => s.docs.map(ChatModel.fromFirestore).toList());
+      .map((s) {
+        final chats = s.docs.map(ChatModel.fromFirestore).toList();
+        chats.sort((a, b) => (b.lastMessageTime ?? DateTime(0))
+            .compareTo(a.lastMessageTime ?? DateTime(0)));
+        return chats;
+      });
 
-  /// Real-time stream of messages in a chat.
+  /// Real-time stream of messages in a chat (single-field orderBy — no index needed).
   Stream<List<MessageModel>> getMessages(String chatId) => _db
       .collection('chats')
       .doc(chatId)
@@ -35,7 +40,7 @@ class MessageService {
         .get();
 
     for (final doc in existing.docs) {
-      final participants = List<String>.from(doc['participants']);
+      final participants = List<String>.from(doc['participants'] ?? []);
       if (participants.contains(otherUid)) return doc.id;
     }
 
