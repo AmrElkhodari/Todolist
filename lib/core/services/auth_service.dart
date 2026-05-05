@@ -1,11 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Wraps Firebase Authentication and Google Sign-In.
 /// All screens interact with this service — never directly with Firebase.
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
 
   /// The currently signed-in user, or null if not authenticated.
   User? get currentUser => _auth.currentUser;
@@ -51,17 +54,37 @@ class AuthService {
   }
 
   /// Signs in using Google OAuth.
+  /// Returns null if the user cancels. Throws on actual errors.
   Future<UserCredential?> signInWithGoogle() async {
-    final googleUser = await _googleSignIn.signIn();
-    if (googleUser == null) return null; // User cancelled.
+    try {
+      // Force the account chooser to appear every time.
+      await _googleSignIn.signOut();
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return null; // User cancelled.
 
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+      final googleAuth = await googleUser.authentication;
 
-    return _auth.signInWithCredential(credential);
+      if (googleAuth.accessToken == null || googleAuth.idToken == null) {
+        throw PlatformException(
+          code: 'MISSING_GOOGLE_AUTH_TOKEN',
+          message: 'Google authentication tokens are missing.',
+        );
+      }
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return _auth.signInWithCredential(credential);
+    } on PlatformException {
+      rethrow;
+    } catch (e) {
+      throw FirebaseAuthException(
+        code: 'google-sign-in-failed',
+        message: e.toString(),
+      );
+    }
   }
 
   // ── Email Verification ────────────────────────────────────────────────────

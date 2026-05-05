@@ -31,7 +31,8 @@ class TodoScreen extends StatelessWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(AppDimens.md),
-                  child: _SummaryCard(total: tasks.length, done: tasks.length - pending),
+                  child: _SummaryCard(
+                      total: tasks.length, done: tasks.length - pending),
                 ),
               ),
               SliverToBoxAdapter(
@@ -47,10 +48,8 @@ class TodoScreen extends StatelessWidget {
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, i) => _TaskCard(
-                      task: tasks[i],
-                      service: service,
-                    ),
+                    (context, i) =>
+                        _TaskCard(task: tasks[i], service: service),
                     childCount: tasks.length,
                   ),
                 ),
@@ -60,22 +59,26 @@ class TodoScreen extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddTaskSheet(context, uid, TaskService()),
+        onPressed: () =>
+            _showAddTaskSheet(context, uid, TaskService()),
         backgroundColor: AppColors.primaryLight,
         foregroundColor: AppColors.white,
         icon: const Icon(Icons.add),
         label: const Text('New Task',
-            style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                fontFamily: 'Poppins', fontWeight: FontWeight.w600)),
       ),
     );
   }
 
-  void _showAddTaskSheet(BuildContext context, String uid, TaskService service) {
+  void _showAddTaskSheet(
+      BuildContext context, String uid, TaskService service) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusLg)),
+        borderRadius: BorderRadius.vertical(
+            top: Radius.circular(AppDimens.radiusLg)),
       ),
       builder: (_) => _AddTaskSheet(uid: uid, service: service),
     );
@@ -107,12 +110,18 @@ class _SummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('My Progress',
-              style: TextStyle(fontFamily: 'Poppins', color: AppColors.white,
-                  fontSize: 14, fontWeight: FontWeight.w500)),
+              style: TextStyle(
+                  fontFamily: 'Poppins',
+                  color: AppColors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
           Text('$done of $total tasks done',
-              style: const TextStyle(fontFamily: 'Poppins', color: AppColors.white,
-                  fontSize: 24, fontWeight: FontWeight.w700)),
+              style: const TextStyle(
+                  fontFamily: 'Poppins',
+                  color: AppColors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: AppDimens.md),
           ClipRRect(
             borderRadius: BorderRadius.circular(AppDimens.radiusFull),
@@ -129,18 +138,49 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-// ── Task Card ─────────────────────────────────────────────────────────────────
+// ── Expandable Task Card ──────────────────────────────────────────────────────
 
-class _TaskCard extends StatelessWidget {
+class _TaskCard extends StatefulWidget {
   const _TaskCard({required this.task, required this.service});
   final TaskModel task;
   final TaskService service;
 
   @override
+  State<_TaskCard> createState() => _TaskCardState();
+}
+
+class _TaskCardState extends State<_TaskCard>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = false;
+  late AnimationController _controller;
+  late Animation<double> _expandAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+        vsync: this, duration: AppDimens.durationNormal);
+    _expandAnim = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() => _expanded = !_expanded);
+    _expanded ? _controller.forward() : _controller.reverse();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final t = widget.task;
+
     return Dismissible(
-      key: Key(task.id),
+      key: Key(t.id),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
@@ -153,55 +193,161 @@ class _TaskCard extends StatelessWidget {
         ),
         child: const Icon(Icons.delete_outline, color: AppColors.error),
       ),
-      onDismissed: (_) => service.deleteTask(task.id),
-      child: Container(
-        margin: const EdgeInsets.symmetric(
-            horizontal: AppDimens.md, vertical: AppDimens.xs),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          boxShadow: isDark ? AppShadows.cardDark : AppShadows.card,
-        ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
+      onDismissed: (_) => widget.service.deleteTask(t.id),
+      child: GestureDetector(
+        onTap: _toggle,
+        child: AnimatedContainer(
+          duration: AppDimens.durationNormal,
+          margin: const EdgeInsets.symmetric(
               horizontal: AppDimens.md, vertical: AppDimens.xs),
-          leading: Container(
-            width: 12, height: 12,
-            decoration: BoxDecoration(color: task.color, shape: BoxShape.circle),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+            boxShadow: isDark ? AppShadows.cardDark : AppShadows.card,
+            border: t.isOverdue
+                ? Border.all(
+                    color: AppColors.error.withValues(alpha: 0.4), width: 1)
+                : null,
           ),
-          title: Text(
-            task.title,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  decoration: task.done ? TextDecoration.lineThrough : null,
-                  color: task.done
-                      ? Theme.of(context).colorScheme.onSurfaceVariant
-                      : null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Main row ──────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimens.md, vertical: AppDimens.sm),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12, height: 12,
+                      decoration: BoxDecoration(
+                          color: t.color, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: AppDimens.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            t.title,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  decoration: t.done
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: t.done
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant
+                                      : null,
+                                ),
+                          ),
+                          if (t.dueDate != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 11,
+                                    color: t.isOverdue
+                                        ? AppColors.error
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    _formatDate(t.dueDate!),
+                                    style: TextStyle(
+                                      fontFamily: 'Poppins',
+                                      fontSize: 11,
+                                      color: t.isOverdue
+                                          ? AppColors.error
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Expand chevron
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: AppDimens.durationNormal,
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: AppDimens.sm),
+                    // Checkbox
+                    GestureDetector(
+                      onTap: () =>
+                          widget.service.toggleTask(t.id, !t.done),
+                      child: AnimatedContainer(
+                        duration: AppDimens.durationNormal,
+                        width: 26, height: 26,
+                        decoration: BoxDecoration(
+                          color: t.done
+                              ? AppColors.primaryLight
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: t.done
+                                ? AppColors.primaryLight
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: t.done
+                            ? const Icon(Icons.check,
+                                size: 16, color: AppColors.white)
+                            : null,
+                      ),
+                    ),
+                  ],
                 ),
-          ),
-          trailing: GestureDetector(
-            onTap: () => service.toggleTask(task.id, !task.done),
-            child: AnimatedContainer(
-              duration: AppDimens.durationNormal,
-              width: 26, height: 26,
-              decoration: BoxDecoration(
-                color: task.done ? AppColors.primaryLight : Colors.transparent,
-                border: Border.all(
-                  color: task.done
-                      ? AppColors.primaryLight
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  width: 2,
-                ),
-                borderRadius: BorderRadius.circular(8),
               ),
-              child: task.done
-                  ? const Icon(Icons.check, size: 16, color: AppColors.white)
-                  : null,
-            ),
+
+              // ── Expandable description panel ──────────────────────────
+              SizeTransition(
+                sizeFactor: _expandAnim,
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(
+                      AppDimens.md, 0, AppDimens.md, AppDimens.md),
+                  padding: const EdgeInsets.all(AppDimens.md),
+                  decoration: BoxDecoration(
+                    color: t.color.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  ),
+                  child: Text(
+                    t.description.isEmpty
+                        ? 'No description.'
+                        : t.description,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  String _formatDate(DateTime d) =>
+      '${d.day}/${d.month}/${d.year}';
 }
 
 // ── Add Task Bottom Sheet ─────────────────────────────────────────────────────
@@ -216,9 +362,11 @@ class _AddTaskSheet extends StatefulWidget {
 }
 
 class _AddTaskSheetState extends State<_AddTaskSheet> {
-  final _ctrl = TextEditingController();
-  int _colorIndex = 0;
-  bool _saving = false;
+  final _titleCtrl = TextEditingController();
+  final _descCtrl  = TextEditingController();
+  int _colorIndex  = 0;
+  DateTime? _dueDate;
+  bool _saving     = false;
 
   static const _colors = [
     AppColors.accentMint, AppColors.accentBlue,
@@ -226,65 +374,127 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
   ];
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) setState(() => _dueDate = picked);
+  }
 
   Future<void> _save() async {
-    if (_ctrl.text.trim().isEmpty) return;
+    if (_titleCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
     await widget.service.addTask(
-        userId: widget.uid,
-        title: _ctrl.text.trim(),
-        colorIndex: _colorIndex);
+      userId: widget.uid,
+      title: _titleCtrl.text.trim(),
+      description: _descCtrl.text.trim(),
+      colorIndex: _colorIndex,
+      dueDate: _dueDate,
+    );
     if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(AppDimens.lg, AppDimens.lg,
-          AppDimens.lg, MediaQuery.of(context).viewInsets.bottom + AppDimens.lg),
+      padding: EdgeInsets.fromLTRB(
+          AppDimens.lg, AppDimens.lg, AppDimens.lg,
+          MediaQuery.of(context).viewInsets.bottom + AppDimens.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('New Task', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: AppDimens.md),
+
+          // Title
           TextField(
-            controller: _ctrl,
+            controller: _titleCtrl,
             autofocus: true,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => _save(),
-            decoration: const InputDecoration(hintText: 'Task title…'),
+            decoration: const InputDecoration(hintText: 'Task title (required)'),
           ),
           const SizedBox(height: AppDimens.md),
+
+          // Description
+          TextField(
+            controller: _descCtrl,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Description (optional)',
+              alignLabelWithHint: true,
+            ),
+          ),
+          const SizedBox(height: AppDimens.md),
+
+          // Due date
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                  label: Text(
+                    _dueDate == null
+                        ? 'Set due date (optional)'
+                        : 'Due: ${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}',
+                    style: const TextStyle(fontFamily: 'Poppins', fontSize: 13),
+                  ),
+                ),
+              ),
+              if (_dueDate != null) ...[
+                const SizedBox(width: AppDimens.sm),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: () => setState(() => _dueDate = null),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppDimens.md),
+
+          // Color
           Text('Color', style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: AppDimens.sm),
           Row(
-            children: List.generate(_colors.length, (i) => GestureDetector(
-              onTap: () => setState(() => _colorIndex = i),
-              child: AnimatedContainer(
-                duration: AppDimens.durationNormal,
-                margin: const EdgeInsets.only(right: AppDimens.sm),
-                width: 36, height: 36,
-                decoration: BoxDecoration(
-                  color: _colors[i],
-                  shape: BoxShape.circle,
-                  border: _colorIndex == i
-                      ? Border.all(color: AppColors.primary, width: 3)
-                      : null,
+            children: List.generate(
+              _colors.length,
+              (i) => GestureDetector(
+                onTap: () => setState(() => _colorIndex = i),
+                child: AnimatedContainer(
+                  duration: AppDimens.durationNormal,
+                  margin: const EdgeInsets.only(right: AppDimens.sm),
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    color: _colors[i],
+                    shape: BoxShape.circle,
+                    border: _colorIndex == i
+                        ? Border.all(color: AppColors.primary, width: 3)
+                        : null,
+                  ),
                 ),
               ),
-            )),
+            ),
           ),
           const SizedBox(height: AppDimens.lg),
+
           SizedBox(
             width: double.infinity, height: 52,
             child: ElevatedButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5,
-                          color: AppColors.white))
+                  ? const SizedBox(
+                      width: 22, height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: AppColors.white))
                   : const Text('Add Task'),
             ),
           ),
@@ -299,15 +509,14 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(AppDimens.xl),
-    child: Column(
-      children: [
-        Icon(Icons.check_circle_outline,
-            size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(height: AppDimens.md),
-        Text('No tasks yet', style: Theme.of(context).textTheme.bodyMedium),
-        Text('Tap + to add your first task',
-            style: Theme.of(context).textTheme.bodySmall),
-      ],
-    ),
+    child: Column(children: [
+      Icon(Icons.check_circle_outline,
+          size: 64,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      const SizedBox(height: AppDimens.md),
+      Text('No tasks yet', style: Theme.of(context).textTheme.bodyMedium),
+      Text('Tap + to add your first task',
+          style: Theme.of(context).textTheme.bodySmall),
+    ]),
   );
 }

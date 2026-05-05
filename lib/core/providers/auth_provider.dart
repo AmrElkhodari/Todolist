@@ -121,6 +121,9 @@ class AuthProvider extends ChangeNotifier {
     } on FirebaseAuthException catch (e) {
       _setError(_friendlyError(e.code));
       return false;
+    } catch (_) {
+      _setError('Google Sign-In failed. Make sure your app SHA-1 is registered in Firebase Console.');
+      return false;
     } finally {
       _setLoading(false);
     }

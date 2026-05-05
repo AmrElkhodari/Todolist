@@ -4,8 +4,6 @@ import '../models/task_model.dart';
 class TaskService {
   final _col = FirebaseFirestore.instance.collection('tasks');
 
-  /// Real-time stream of a user's tasks, newest first.
-  /// Sorting is done client-side to avoid requiring a composite Firestore index.
   Stream<List<TaskModel>> getUserTasks(String userId) => _col
       .where('userId', isEqualTo: userId)
       .snapshots()
@@ -18,15 +16,21 @@ class TaskService {
   Future<void> addTask({
     required String userId,
     required String title,
+    String description = '',
     required int colorIndex,
-  }) =>
-      _col.add({
-        'userId': userId,
-        'title': title,
-        'done': false,
-        'colorIndex': colorIndex,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+    DateTime? dueDate,
+  }) {
+    final data = <String, dynamic>{
+      'userId': userId,
+      'title': title,
+      'description': description,
+      'done': false,
+      'colorIndex': colorIndex,
+      'createdAt': FieldValue.serverTimestamp(),
+    };
+    if (dueDate != null) data['dueDate'] = Timestamp.fromDate(dueDate);
+    return _col.add(data);
+  }
 
   Future<void> toggleTask(String taskId, bool done) =>
       _col.doc(taskId).update({'done': done});

@@ -20,44 +20,33 @@ class MessagesScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        children: [
-          Padding(
+      body: StreamBuilder<List<ChatModel>>(
+        stream: service.getUserChats(uid),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final chats = snap.data ?? [];
+          if (chats.isEmpty) return const _EmptyInbox();
+          return ListView.separated(
             padding: const EdgeInsets.all(AppDimens.md),
-            child: _SearchBar(),
-          ),
-          Expanded(
-            child: StreamBuilder<List<ChatModel>>(
-              stream: service.getUserChats(uid),
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final chats = snap.data ?? [];
-                if (chats.isEmpty) return const _EmptyInbox();
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: AppDimens.md),
-                  itemCount: chats.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: AppDimens.xs),
-                  itemBuilder: (context, i) => _ChatTile(
+            itemCount: chats.length,
+            separatorBuilder: (context, index) => const SizedBox(height: AppDimens.xs),
+            itemBuilder: (context, i) => _ChatTile(
+              chat: chats[i],
+              myUid: uid,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
                     chat: chats[i],
                     myUid: uid,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ChatScreen(
-                          chat: chats[i],
-                          myUid: uid,
-                          myName: auth.user?.displayName ?? '',
-                        ),
-                      ),
-                    ),
+                    myName: auth.user?.displayName ?? '',
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
-        ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showNewMessageDialog(context, uid, auth.user?.displayName ?? ''),
@@ -68,8 +57,7 @@ class MessagesScreen extends StatelessWidget {
     );
   }
 
-  void _showNewMessageDialog(
-      BuildContext context, String myUid, String myName) {
+  void _showNewMessageDialog(BuildContext context, String myUid, String myName) {
     final emailCtrl = TextEditingController();
     showDialog(
       context: context,
@@ -85,9 +73,7 @@ class MessagesScreen extends StatelessWidget {
           ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
@@ -95,30 +81,20 @@ class MessagesScreen extends StatelessWidget {
               if (!context.mounted) return;
               if (user == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No user found with that email.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
+                  const SnackBar(content: Text('No user found with that email.'), behavior: SnackBarBehavior.floating),
                 );
                 return;
               }
               final chatId = await MessageService().getOrCreateChat(
-                myUid: myUid,
-                myName: myName,
-                otherUid: user.uid,
-                otherName: user.fullName,
+                myUid: myUid, myName: myName,
+                otherUid: user.uid, otherName: user.fullName,
               );
               if (!context.mounted) return;
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => ChatScreen(
-                  chat: ChatModel(
-                    id: chatId,
-                    participants: [myUid, user.uid],
-                    participantNames: {myUid: myName, user.uid: user.fullName},
-                    lastMessage: '',
-                  ),
-                  myUid: myUid,
-                  myName: myName,
+                  chat: ChatModel(id: chatId, participants: [myUid, user.uid],
+                      participantNames: {myUid: myName, user.uid: user.fullName}, lastMessage: ''),
+                  myUid: myUid, myName: myName,
                 ),
               ));
             },
@@ -130,11 +106,8 @@ class MessagesScreen extends StatelessWidget {
   }
 }
 
-// ── Chat Tile ─────────────────────────────────────────────────────────────────
-
 class _ChatTile extends StatelessWidget {
-  const _ChatTile(
-      {required this.chat, required this.myUid, required this.onTap});
+  const _ChatTile({required this.chat, required this.myUid, required this.onTap});
   final ChatModel chat;
   final String myUid;
   final VoidCallback onTap;
@@ -144,7 +117,6 @@ class _ChatTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final name = chat.otherName(myUid);
     final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
-
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -157,36 +129,21 @@ class _ChatTile extends StatelessWidget {
         child: Row(
           children: [
             CircleAvatar(
-              radius: 24,
-              backgroundColor: AppColors.primaryPastel,
-              child: Text(initial,
-                  style: const TextStyle(
-                      color: AppColors.primaryLight,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'Poppins',
-                      fontSize: 16)),
+              radius: 24, backgroundColor: AppColors.primaryPastel,
+              child: Text(initial, style: const TextStyle(color: AppColors.primaryLight,
+                  fontWeight: FontWeight.w700, fontFamily: 'Poppins', fontSize: 16)),
             ),
             const SizedBox(width: AppDimens.md),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name,
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
-                          ?.copyWith(fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Text(chat.lastMessage,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 15)),
+                const SizedBox(height: 2),
+                Text(chat.lastMessage, style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
             ),
             if (chat.lastMessageTime != null)
-              Text(_formatTime(chat.lastMessageTime!),
-                  style: Theme.of(context).textTheme.bodySmall),
+              Text(_formatTime(chat.lastMessageTime!), style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
       ),
@@ -194,51 +151,22 @@ class _ChatTile extends StatelessWidget {
   }
 
   String _formatTime(DateTime t) {
-    final now = DateTime.now();
-    final diff = now.difference(t);
+    final diff = DateTime.now().difference(t);
     if (diff.inDays == 0) return '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
     if (diff.inDays == 1) return 'Yesterday';
     return '${t.day}/${t.month}';
   }
 }
 
-class _SearchBar extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => Container(
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      boxShadow: AppShadows.card,
-    ),
-    child: TextField(
-      decoration: InputDecoration(
-        hintText: 'Search messages…',
-        prefixIcon: const Icon(Icons.search),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          borderSide: BorderSide.none,
-        ),
-        filled: true,
-        fillColor: Colors.transparent,
-      ),
-    ),
-  );
-}
-
 class _EmptyInbox extends StatelessWidget {
   const _EmptyInbox();
   @override
   Widget build(BuildContext context) => Center(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.chat_bubble_outline,
-            size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
-        const SizedBox(height: AppDimens.md),
-        Text('No conversations yet', style: Theme.of(context).textTheme.bodyMedium),
-        Text('Tap ✏ to start a new chat',
-            style: Theme.of(context).textTheme.bodySmall),
-      ],
-    ),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.chat_bubble_outline, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+      const SizedBox(height: AppDimens.md),
+      Text('No conversations yet', style: Theme.of(context).textTheme.bodyMedium),
+      Text('Tap ✏ to start a new chat', style: Theme.of(context).textTheme.bodySmall),
+    ]),
   );
 }

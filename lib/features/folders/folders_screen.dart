@@ -6,6 +6,7 @@ import '../../core/services/folder_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_shadows.dart';
 import '../../core/constants/app_dimens.dart';
+import 'folder_detail_screen.dart';
 
 class FoldersScreen extends StatelessWidget {
   const FoldersScreen({super.key});
@@ -119,7 +120,9 @@ class _FolderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
-      onTap: () {},
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => FolderDetailScreen(folder: folder)),
+      ),
       onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.all(AppDimens.md),
