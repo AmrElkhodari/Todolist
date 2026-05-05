@@ -27,6 +27,9 @@ dependencies:
   # Shared Preferences (for persisting theme)
   shared_preferences: ^2.3.3
 
+  # File Picker
+  file_picker: ^8.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

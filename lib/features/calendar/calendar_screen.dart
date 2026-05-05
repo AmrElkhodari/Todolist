@@ -34,12 +34,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
         builder: (context, snap) {
           final tasks = snap.data ?? [];
 
-          // Group tasks by day-of-month for the focused month.
+          // Group tasks by the due date if set, otherwise by creation date.
           final tasksByDay = <int, List<TaskModel>>{};
           for (final t in tasks) {
-            if (t.createdAt.year == _focusedMonth.year &&
-                t.createdAt.month == _focusedMonth.month) {
-              tasksByDay.putIfAbsent(t.createdAt.day, () => []).add(t);
+            final date = t.dueDate ?? t.createdAt;
+            if (date.year == _focusedMonth.year &&
+                date.month == _focusedMonth.month) {
+              tasksByDay.putIfAbsent(date.day, () => []).add(t);
             }
           }
 

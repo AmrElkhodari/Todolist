@@ -1,9 +1,11 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/folder_model.dart';
 import '../../core/models/folder_models.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/services/folder_data_service.dart';
+import '../../core/services/folder_service.dart';
 import '../../core/services/user_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_shadows.dart';
@@ -71,18 +73,20 @@ class FolderDetailScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              final user = await UserService().findByEmail(ctrl.text);
+              final user = await UserService().findByEmail(ctrl.text.trim());
               if (!context.mounted) return;
               if (user == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('User not found.'), behavior: SnackBarBehavior.floating));
                 return;
               }
+              // Add user to folder members array.
+              await FolderService().addMember(folder.id, user.uid);
               await FolderDataService().logActivity(
                   folder.id, user.uid, user.fullName, 'joined the folder');
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${user.fullName} invited!'), behavior: SnackBarBehavior.floating));
+                  SnackBar(content: Text('${user.fullName} added to folder!'), behavior: SnackBarBehavior.floating));
               }
             },
             child: const Text('Invite'),
@@ -282,11 +286,19 @@ class _AddFolderTaskSheetState extends State<_AddFolderTaskSheet> {
   Future<void> _save() async {
     if (_titleCtrl.text.trim().isEmpty) return;
     setState(() => _saving = true);
-    await widget.svc.addTask(
-        folderId: widget.folderId, createdBy: widget.uid,
-        createdByName: widget.userName, title: _titleCtrl.text.trim(),
-        description: _descCtrl.text.trim(), colorIndex: _colorIdx, dueDate: _due);
-    if (mounted) Navigator.pop(context);
+    try {
+      await widget.svc.addTask(
+          folderId: widget.folderId, createdBy: widget.uid,
+          createdByName: widget.userName, title: _titleCtrl.text.trim(),
+          description: _descCtrl.text.trim(), colorIndex: _colorIdx, dueDate: _due);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating));
+      }
+    }
   }
 
   @override
@@ -382,7 +394,7 @@ class _FilesTab extends StatelessWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddFileDialog(context),
+        onPressed: () => _pickAndAddFile(context),
         backgroundColor: folder.color,
         foregroundColor: AppColors.white,
         child: const Icon(Icons.upload_file_outlined),
@@ -390,32 +402,22 @@ class _FilesTab extends StatelessWidget {
     );
   }
 
-  void _showAddFileDialog(BuildContext context) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add File Reference'),
-        content: TextField(controller: ctrl, autofocus: true,
-            decoration: const InputDecoration(
-                hintText: 'File name (e.g. Design.pdf)')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              if (ctrl.text.trim().isEmpty) return;
-              Navigator.pop(context);
-              final name = ctrl.text.trim();
-              final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'FILE';
-              await svc.addFileMetadata(folderId: folder.id, uploadedBy: uid,
-                  uploaderName: userName, name: name, type: ext);
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+  Future<void> _pickAndAddFile(BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.any,
     );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    final name = file.name;
+    final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'FILE';
+    await svc.addFileMetadata(
+        folderId: folder.id, uploadedBy: uid,
+        uploaderName: userName, name: name, type: ext);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"$name" added.'), behavior: SnackBarBehavior.floating));
+    }
   }
 }
 

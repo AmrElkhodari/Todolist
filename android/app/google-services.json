@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "981602010582-7d8suo4ckftb4fo5s402eojsijnle9s2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.elkhodari.todolist",
+            "certificate_hash": "0eafb955b7df02776ebc6ac14e6c8c40b09978e9"
+          }
+        },
+        {
           "client_id": "981602010582-t0h89issp9hbcoskqhglobkoj4fae9de.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -409,10 +409,11 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
       padding: EdgeInsets.fromLTRB(
           AppDimens.lg, AppDimens.lg, AppDimens.lg,
           MediaQuery.of(context).viewInsets.bottom + AppDimens.lg),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text('New Task', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: AppDimens.md),
 
@@ -498,7 +499,8 @@ class _AddTaskSheetState extends State<_AddTaskSheet> {
                   : const Text('Add Task'),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
